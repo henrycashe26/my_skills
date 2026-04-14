@@ -4,14 +4,16 @@ description: >
   Detect and fix AI-generated-looking frontend code, UI, and copy. Use this skill whenever
   you need to audit a frontend for the "AI slope" — the cluster of visual patterns, code
   patterns, and text patterns that make something unmistakably look like it was generated
-  by an AI. Trigger when the user asks "does this look AI-generated", "how do I make this
+  by an AI. Covers landing pages, in-product UI, diagrams and canvas tools, forms and
+  dialogs. Trigger when the user asks "does this look AI-generated", "how do I make this
   look less AI", "why does this look generic", "audit this for AI tells", "this feels like
-  a template", or uploads a screenshot of a landing page, component, or UI. Also trigger
-  proactively when you see obvious AI visual tells in code you are reviewing: purple/blue
-  gradients, emoji feature lists, the "hero + solid color rectangle" layout, gradient text
-  headings, Inter font everywhere, or wavy section dividers. This skill uses the humanizer
-  skill for copy and extends it to visual and code domains. Being honest about what is
-  AI-looking is more useful than being polite.
+  a template", or uploads a screenshot of a landing page, component, dashboard, diagram,
+  or form. Also trigger proactively when you see obvious AI visual tells in code you are
+  reviewing: purple/blue gradients, emoji feature lists, gradient text headings, Inter
+  font everywhere, wavy section dividers, uppercase tracked form labels, every-node-is-a-
+  rounded-rectangle diagrams, or the cyan+coral+amber dashboard palette. This skill uses
+  the humanizer skill for copy and extends it to visual and code domains. Being honest
+  about what is AI-looking is more useful than being polite.
 ---
 
 # Frontend AI Audit
@@ -43,11 +45,13 @@ Understanding the root cause matters — it explains why the patterns are so con
 When given a frontend to audit (code, screenshot, or URL):
 
 1. **Scan for visual AI tells** — color, layout, typography, decoration, animation
-2. **Scan for copy AI tells** — invoke the humanizer skill on all text content, then apply the landing page-specific patterns below
-3. **Scan for code AI tells** — structure, naming, spacing, state management, shadcn usage
-4. **Score the AI slope** — rate overall AI-ness from 0 (human) to 10 (unmistakably AI)
-5. **Report findings** — each tell named specifically, with the mechanism and a concrete fix
-6. **Prioritize** — the 3 highest-leverage changes first
+2. **Scan for diagram / canvas / in-product UI tells** — if the thing is a diagram, graph editor, or dashboard, check the node-shape vocabulary, redundant metadata, accent stripes, connect handles, and status palette
+3. **Scan for form / dialog tells** — if there are forms or modals, check for uppercase tracked labels, the Delete + Done footer pair, generic confirm dialogs, and uniform field stacks
+4. **Scan for copy AI tells** — invoke the humanizer skill on all text content, then apply the landing page-specific patterns below
+5. **Scan for code AI tells** — structure, naming, spacing, state management, shadcn usage
+6. **Score the AI slope** — rate overall AI-ness from 0 (human) to 10 (unmistakably AI)
+7. **Report findings** — each tell named specifically, with the mechanism and a concrete fix
+8. **Prioritize** — the 3 highest-leverage changes first
 
 ---
 
@@ -323,6 +327,198 @@ The hero button that bobs up and down forever. Remove.
 
 ---
 
+## Diagram, Canvas, and App UI Tells
+
+The landing-page tells don't cover in-product UI: system diagrams, graph editors, canvas tools, node-based editors, dashboards with many domain objects. These have their own cluster of AI patterns, and they're easy to miss if you only look for indigo gradients and wavy dividers.
+
+### 1. Uniform Node Shape Across Roles
+
+When every item in a diagram, graph, or topology is the same rounded rectangle, it is a strong AI tell. Real diagrams use shape to encode role: actor / person / party as a person icon or stadium shape, service or process as a rectangle, datastore as a cylinder or stacked-rectangles glyph, external system as a dashed border or distinct fill, decision or branch as a diamond.
+
+```tsx
+// AI: everything is the same card
+<rect width={160} height={52} rx={8} />   // DoD Customer (an actor)
+<rect width={160} height={52} rx={8} />   // Auth service (a process)
+<rect width={160} height={52} rx={8} />   // Postgres (a datastore)
+```
+
+**Why it happens:** models trained on web/dashboard code have seen vastly more "cards in a grid" than proper architecture diagrams (which live in Lucid, Miro, and Figma — not in repos). The cheap default is "every node = card."
+
+**Fix:** at minimum, make external nodes visually distinct from internal ones (dashed border, different fill, or different shape). For richer diagrams, commit to a small shape vocabulary and document it in a legend.
+
+---
+
+### 2. Redundant Metadata Subtitles
+
+AI defaults to exhaustive labeling. A node that has its category encoded in its outline color AND in a left-edge accent stripe AND in a muted subtitle text is triple-coded. The subtitle is the tell.
+
+```tsx
+// AI: belt, suspenders, and a second belt
+<g stroke={categoryColor}>                        // 1. outline color encodes category
+  <rect width={6} fill={categoryColor} />         // 2. accent stripe also encodes it
+  <text>{node.label}</text>
+  <text className="muted">{categoryLabel}</text>  // 3. subtitle says it again
+</g>
+```
+
+**Fix:** count how many ways you are communicating the same attribute. If it's more than one, drop the redundant ones. Belt-and-suspenders is an AI cadence, not a design virtue.
+
+---
+
+### 3. The Vertical Card-Accent Stripe
+
+The horizontal accent stripe from landing pages (see Visual Tells §8) has a vertical cousin in node-based UIs: a 4–6px vertical bar on the left edge of each node, colored by category or status. Redundant with the outline color if both exist.
+
+```tsx
+<g>
+  <rect width={160} height={52} stroke={categoryColor} />
+  <rect width={6} height={52} fill={categoryColor} />  // ← vertical stripe
+</g>
+```
+
+**Fix:** pick one.
+
+---
+
+### 4. The Floating "+" Connect Handle
+
+The canonical AI way to express "add a connection from this node": a cyan or indigo filled circle with a white plus, parked next to whatever is selected.
+
+What real tools do instead — Figma and FigJam put the affordance on the edge of the shape and activate it on hover; Excalidraw lets you drag from a side midpoint; Miro surfaces directional arrows on all four sides on hover; Lucidchart lets you drag-to-create from any shape edge. None of them park a filled button next to the selection.
+
+**Why it's an AI tell:** training data weighs "button that does a thing" much more heavily than "hover affordance on an edge." The AI reaches for the most literal UI shape.
+
+**Fix:** edge-hover affordances are the professional pattern. If you keep a visible button, make it ghost-styled, only visible on hover, and add a keyboard shortcut.
+
+---
+
+### 5. The "Every Surface Is rx=8" Monoradius
+
+AI picks one border radius (usually 8px, Tailwind's `rounded-lg`) and applies it to every surface: nodes, popovers, cards, buttons, inputs, dropdowns, dialogs. The monolithic radius reads as generated.
+
+```tsx
+// AI: every surface has the same radius
+<rect rx={8} />                          // node
+<div className="rounded-lg" />           // popover
+<button className="rounded-lg" />        // button
+<input className="rounded-lg" />         // input
+```
+
+**Fix:** pick at least two radii and use them by role. Inputs and data-dense elements usually want tighter radii than containers and sheets. Linear uses roughly 2px on inputs, 6px on buttons, 8px on cards — intentional variation.
+
+---
+
+### 6. The "Serious Dashboard" Status Palette
+
+A generic palette that appears in every AI-generated in-product UI: teal or cyan for "good," coral or red for "bad," amber or yellow for "warn," plus a neutral dark background. It is accessible and boring.
+
+```css
+/* AI serious-dashboard tokens */
+--good: #22d3ee;    /* or #06b6d4, #14b8a6 */
+--bad:  #f87171;    /* or #ef4444, #f43f5e */
+--warn: #f59e0b;    /* or #fbbf24, #eab308 */
+```
+
+**Why it's a tell:** these are the "accessibility-safe status colors" that everyone lands on when they don't make a brand choice. A real product commits to one brand hue + neutrals and reserves status colors for genuine status, not decoration.
+
+**Fix:** pick one brand color that is not teal, coral, or amber. Use it for selection, focus, and primary actions. Reserve red and yellow for actual errors and warnings, and encode status with shape or iconography too — not just color.
+
+---
+
+## Form and Dialog Tells
+
+Form and dialog UI has its own fingerprint, largely inherited from shadcn/ui defaults.
+
+### 1. UPPERCASE TRACKED Field Labels
+
+The single strongest form-UI AI tell. It comes from the common shadcn `Label` usage pattern and Radix Form defaults.
+
+```tsx
+// AI: uppercase tracked muted label above every input
+<label className="text-xs uppercase tracking-wide text-muted-foreground">
+  LABEL
+</label>
+<input ... />
+
+// Human: sentence case, normal tracking
+<label className="text-sm text-gray-600">Label</label>
+<input ... />
+
+// Often better: no form chrome at all
+<input
+  className="bg-transparent border-none"
+  value={node.label}
+  onChange={...}
+  aria-label="Node label"
+/>
+```
+
+**Why it happens:** the shadcn docs use uppercase tracked labels in nearly every form example. Training data absorbed this as "form labels look like this."
+
+**Fix:** sentence case, no tracking, no uppercase. For simple fields, consider inline editing (click the value, type) so there is no form chrome at all.
+
+---
+
+### 2. The Delete + Done Footer Pair
+
+The AI-default dialog footer: destructive action outlined on the left, neutral primary filled on the right, both always visible.
+
+```tsx
+// AI: destructive action parked in the primary footer
+<div className="flex justify-end gap-2">
+  <Button variant="destructive-outline">Delete</Button>
+  <Button>Done</Button>
+</div>
+```
+
+What real apps do — Linear puts destructive actions in an overflow (three-dots) menu, not the footer. Notion hides delete behind a menu or a separate confirmation modal. Figma uses a keyboard shortcut or right-click, not a primary footer button. Stripe Dashboard requires typed confirmation for anything destructive ("type DELETE to confirm").
+
+**Why it's a tell:** models are trained on "every dialog has Cancel + Save." They extrapolate destructive actions into the same footer slot. Real products protect destructive actions from accidental clicks.
+
+**Fix:** move Delete into a menu, an icon in the dialog header, or require an explicit confirm step. Keep the primary footer for non-destructive actions.
+
+---
+
+### 3. "Are you sure?" Generic Confirm Modals
+
+The generic confirmation dialog, straight from the shadcn `alert-dialog` example:
+
+```tsx
+<AlertDialog>
+  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+  <AlertDialogDescription>
+    This action cannot be undone.
+  </AlertDialogDescription>
+  <AlertDialogCancel>Cancel</AlertDialogCancel>
+  <AlertDialogAction>Continue</AlertDialogAction>
+</AlertDialog>
+```
+
+Title, description, Cancel + Continue. Exactly the shadcn demo.
+
+**Fix:** specific title ("Delete DoD Customer?"), specific description that names what is being deleted and what it affects ("This removes the node and 3 connections"), specific button labels ("Delete node" instead of "Continue").
+
+---
+
+### 4. Evenly Stacked Form Fields
+
+Every field gets the same vertical treatment: label, input, next field. Spacing is uniform. No grouping, no visual hierarchy, no inline fields.
+
+```tsx
+// AI: uniform stack
+<div className="space-y-4">
+  <Field label="NAME" />
+  <Field label="EMAIL" />
+  <Field label="ROLE" />
+  <Field label="DEPARTMENT" />
+  <Field label="START DATE" />
+</div>
+```
+
+**Fix:** group related fields (Name fields side-by-side; Address fields as a sub-group). Use inline layouts where they make sense. A form should look composed, not listed.
+
+---
+
 ## Code AI Tells
 
 ### 1. The Spacing System Collapse
@@ -579,6 +775,20 @@ Rate the frontend from 0–10 overall. Also rate each domain:
 - Dot grid background pattern → remove
 - Infinitely bouncing CTA button → remove
 - Everything fades in on scroll at 600ms → only animate elements where motion adds meaning
+
+**Diagrams / canvas / in-product UI:**
+- Every node is the same rounded rectangle regardless of role → shape vocabulary (actor vs service vs datastore vs external)
+- Category encoded in outline AND stripe AND subtitle → pick one
+- Vertical left-edge accent stripe on every node → remove if outline already encodes category
+- Floating filled "+" button parked next to the selection → edge-hover affordance + keyboard shortcut
+- Every surface is `rx=8` (monoradius) → vary radius by role (tighter on inputs, larger on sheets)
+- Cyan + coral + amber status palette → one brand color + neutrals + shape/icon-based status
+
+**Forms / dialogs:**
+- `UPPERCASE tracking-wide` field labels → sentence case, or inline editing with no label
+- Delete + Done in the dialog footer → move destructive actions to a menu or require a typed confirm
+- "Are you sure? This cannot be undone. Continue" → specific title, specific consequences, specific button label
+- Evenly stacked form fields with uniform spacing → group related fields, use inline layout where it fits
 
 **Code:**
 - 50+ unique spacing values, arbitrary `p-[13px]` → 8pt grid, tokens only
