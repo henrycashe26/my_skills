@@ -20,3 +20,4 @@ Personal collection of skills.
 
 ## Research
 - [knowledge-base-builder](research/knowledge-base-builder/) — structured markdown knowledge bases
+- [ground-truth-search](research/ground-truth-search/) — route web searches to primary sources, skip SEO slop
