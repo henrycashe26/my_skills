@@ -2,6 +2,8 @@
 
 Personal collection of skills.
 
+Format and conventions: [STANDARDS.md](STANDARDS.md). Canonical reference for authoring: [`productivity/write-a-skill`](productivity/write-a-skill/). Current conformance: [AUDIT.md](AUDIT.md).
+
 ## Writing
 - [humanizer](writing/humanizer/) — strip AI writing patterns from prose
 
