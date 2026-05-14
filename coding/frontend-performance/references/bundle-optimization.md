@@ -1,5 +1,24 @@
 # Bundle Optimization Reference
 
+The single highest-leverage thing in most apps. A smaller bundle loads faster, parses faster, and executes faster. Everything else is a rounding error compared to shipping 500KB of unused polyfills.
+
+## Find What Is Big
+
+```bash
+# Vite
+bunx vite-bundle-visualizer
+
+# Next.js
+bunx @next/bundle-analyzer
+```
+
+**Common culprits:**
+- `moment.js` — 67KB gzipped. Replace with `date-fns` (or `dayjs`) which is tree-shakeable
+- `lodash` — If you import `import _ from 'lodash'`, you get all 70KB. Import specifically: `import { debounce } from 'lodash-es'`
+- `@mui/material` — Enormous. Prefer Radix UI + Tailwind
+- `recharts` — Large. Consider `visx` or `chart.js` for simpler cases
+- Large icon libraries — `import { IconOne } from 'react-icons'` pulls in the whole library. Use `lucide-react` (tree-shakeable) or import SVGs directly
+
 ## Dependency Substitutions
 
 Common large dependencies and their lighter alternatives:
@@ -27,6 +46,31 @@ bunx webpack-bundle-analyzer
 ANALYZE=true bun run build
 # Requires: bun add -d @next/bundle-analyzer
 ```
+
+## Code Splitting
+
+Route-level splitting is free in Next.js. In Vite, use dynamic imports.
+
+```typescript
+// Instead of: import { HeavyChart } from './HeavyChart'
+const HeavyChart = React.lazy(() => import('./HeavyChart'));
+
+// Use it with Suspense
+function Dashboard() {
+  return (
+    <Suspense fallback={<ChartSkeleton />}>
+      <HeavyChart data={data} />
+    </Suspense>
+  );
+}
+```
+
+Split on:
+- Routes (always)
+- Heavy components only shown on user interaction (modals, drawers with rich content)
+- Components that depend on large libraries (PDF viewer, rich text editor, code highlighter)
+
+Do not split tiny components — the network round trip costs more than loading them inline.
 
 ## Manual Chunk Strategy (Vite)
 
@@ -78,6 +122,15 @@ For tree-shaking to work, the package must:
 3. Mark itself as side-effect-free in package.json: `"sideEffects": false`
 
 Check with: `bunx is-esm package-name`
+
+```typescript
+// Good — tree-shakeable
+import { format, parseISO } from 'date-fns';
+
+// Bad — pulls in everything
+import dateFns from 'date-fns';
+const formatted = dateFns.format(date, 'yyyy-MM-dd');
+```
 
 ## Common Tree-Shaking Mistakes
 
